@@ -1,0 +1,7 @@
+0 0 * * 1 root bash /motd-script/monday.sh
+0 0 * * 2 root bash /motd-script/tuesday.sh
+0 0 * * 3 root bash /motd-script/wednesday.sh
+0 0 * * 4 root bash /motd-script/thursday.sh
+0 0 * * 5 root bash /motd-script/friday.sh
+0 0 * * 6 root bash /motd-script/saturday.sh
+0 0 * * 7 root bash /motd-script/sunday.sh
