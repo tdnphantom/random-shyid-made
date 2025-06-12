@@ -1,0 +1,136 @@
+#!/bin/bash
+
+#Gatau, dari GPT
+run_command() {
+    local cmd="$1"
+    local result
+    result=$(eval "$cmd" 2>&1)
+    if [ $? -ne 0 ]; then
+        echo "Error running command: $cmd"
+        echo "$result"
+        exit 1
+    fi
+    echo "$result"
+}
+
+#Destinasi 
+dst_addr="/vm-xcp-backup"
+
+#Ni biar gk kosong
+if [ -z "$1" ]; then
+    echo "Usage: $0 '<VM-Name>'"
+    exit 1
+fi
+
+#ini buat ambil UUID nya
+vm_uuids=$(run_command "xe vm-list name-label='$1' --minimal")
+if [ -z "$vm_uuids" ]; then    
+    echo "VM UUID(s) not found for the VM: $1"
+    exit 1
+fi
+
+# Split UUIDs into an array (comma-separated)
+IFS=',' read -r -a uuid_array <<< "$vm_uuids"
+
+# Check for multiple UUIDs
+if [ "${#uuid_array[@]}" -gt 1 ]; then
+    echo "Warn: Multiple VMs found with the name: $1"
+    echo "UUIDs: ${uuid_array[*]}"
+    
+    # Process each VM UUID
+    for vm_uuid in "${uuid_array[@]}"; do
+      echo "Processing VM UUID: $vm_uuid"
+
+    # Add timestamp with month as letters
+      timestamp=$(date +"%Y%b%d")
+      export_file="${dst_addr}/$1-${vm_uuid}-${timestamp}.xva"
+
+    # Suspend, export, and resume the VM
+      echo "Suspending VM with UUID: $vm_uuid"
+      run_command "xe vm-suspend vm=$vm_uuid"
+      echo "....."
+      echo "Suspended."
+      echo ""
+
+      echo "Exporting VM with UUID: $vm_uuid to $export_file"
+      run_command "xe vm-export vm=$vm_uuid filename=${export_file}"
+      echo ""
+
+      echo "Resuming VM with UUID: $vm_uuid"
+      echo "....."
+      run_command "xe vm-resume vm=$vm_uuid"
+      echo "VM with UUID: $vm_uuid Resumed"
+      echo "------------------------------------"
+    done
+
+    echo "All VMs with name $1 have been processed."
+    
+    exit 1
+fi
+
+# Use the first (and only) UUID
+vm_uuid="${uuid_array[0]}"
+echo -e "\nFound VM UUID: $vm_uuid"
+
+# Export VM: Overwrite file or add timestamp // Ni jg dari GPT
+timestamp=$(date +"%Y%b%d-%H:%M")
+export_file="${dst_addr}/$1-${timestamp}.xva"
+
+#Ni Dari GPT klo mau OverWrite
+# Remove old file (Optional: Uncomment to overwrite instead of using timestamps)
+# old_file="${dst_addr}/$1.xva"
+# if [ -f "$old_file" ]; then
+#     echo "Removing old export file: $old_file"
+#     rm -f "$old_file"
+# fi
+
+#Ntar biar dia pause dlu
+echo -e "\nSuspending VM: $1 \n"
+xe vm-suspend vm=$vm_uuid
+if [ $? -eq 0 ]; then
+    echo -e "\n.....\nVM: $1 Suspended\n"
+else
+    echo -e "\nSuspend Failed\nExport canceled.\n"
+    exit 1
+fi
+
+# Get the virtual size of the VM's main disk
+vdi_uuid=$(run_command "xe vbd-list vm-uuid=$vm_uuid params=vdi-uuid --minimal |  cut -d ',' -f 1")
+hdd_label=$(xe vdi-list uuid=$vdi_uuid params=name-label --minimal)
+virtual_size=$(xe vdi-list name-label=$hdd_label params=virtual-size --minimal)
+total_size_gb=$((virtual_size / 1024 / 1024 / 1024))
+
+echo "Exporting VM: $1 to $export_file"
+echo "Starting VM export: $vm_uuid (Est size: ${total_size_gb} GB)"
+
+# Start export in the background
+run_command "xe vm-export vm=$vm_uuid filename=${export_file}" &
+export_pid=$!
+
+# Monitor progress based on file size and estimated total size
+while kill -0 $export_pid 2>/dev/null; do
+    file_size=$(stat -c%s "${export_file}" 2>/dev/null || echo 0)
+    file_size_gb=$((file_size / 1024 / 1024 / 1024))
+    progress=$((file_size_gb * 100 / total_size_gb))
+    echo -ne "Exporting... ${progress}% complete (${file_size_gb}/${total_size_gb} GB)\r"
+    sleep 2
+done
+
+#Wait
+wait $export_pid
+if [ $? -eq 0 ]; then
+    echo -e "\nExport completed: $export_file"
+else
+    echo -e "\nExport failed."
+fi
+
+# Resume the VM
+echo "Resuming VM: $1"
+echo "....."
+run_command "xe vm-resume vm=$vm_uuid"
+if [ $? -eq 0 ]; then
+    echo -e "\nVM: $1 is up\n"
+else
+    echo -e "\nResume Failed. VM Remains suspended\n"
+    exit 1
+fi

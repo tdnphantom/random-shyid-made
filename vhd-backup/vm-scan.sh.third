@@ -1,0 +1,46 @@
+#!/bin/bash
+
+# Debug Mode (Uncomment to enable detailed output)
+#set -x
+
+# Ensure a VM name is provided
+if [ -z "$1" ]; then
+  echo "Usage: $0 <vm-name>"
+  exit 1
+fi
+
+VM_NAME=$(echo "$1" | xargs)  # Trim whitespace
+echo "Searching for VM: '$VM_NAME'"
+
+# Get VM UUID
+VM_UUID=$(xe vm-list name-label="$VM_NAME" --minimal)
+if [ -z "$VM_UUID" ]; then
+  echo "Error: VM with name '$VM_NAME' not found."
+  exit 1
+fi
+
+echo "VM UUID: $VM_UUID"
+
+# Get all VDI UUIDs for the VM
+VDI_UUIDS=$(xe vbd-list vm-uuid=$VM_UUID type=Disk params=vdi-uuid --minimal)
+if [ -z "$VDI_UUIDS" ]; then
+  echo "No disks found for VM '$VM_NAME'."
+  exit 1
+fi
+
+echo "Disks for VM: $VM_NAME"
+
+# Loop through each VDI UUID
+for VDI_UUID in $(echo $VDI_UUIDS | tr ',' '\n'); do
+  echo "Processing VDI UUID: $VDI_UUID"
+  # Get SR UUID and location
+  SR_UUID=$(xe vdi-list uuid=$VDI_UUID params=sr-uuid --minimal)
+  LOCATION=$(xe vdi-list uuid=$VDI_UUID params=location --minimal)
+
+  if [ -n "$SR_UUID" ] && [ -n "$LOCATION" ]; then
+    echo "SR: $SR_UUID, VHD: /var/run/sr-mount/$SR_UUID/$LOCATION"
+  else
+    echo "Failed to retrieve details for VDI UUID: $VDI_UUID"
+  fi
+done
+

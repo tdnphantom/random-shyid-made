@@ -1,0 +1,21 @@
+#!/bin/bash
+
+VM_NAME=$1
+
+# Get VM UUID
+VM_UUID=$(xe vm-list name-label="$VM_NAME" | tr ',' '\n')
+
+# Get all VDI UUIDs for the VM
+VDI_UUIDS=$(xe vbd-list vm-uuid=$VM_UUID params=vdi-uuid | tr ',' '\n')
+
+echo "Disks for VM: $VM_NAME"
+
+for VDI_UUID in $VDI_UUIDS; do
+  # Get SR UUID and location
+  INFO=$(xe vdi-list uuid=$VDI_UUID params=sr-uuid,location --minimal)
+  SR_UUID=$(echo $INFO | cut -d',' -f1)
+  LOCATION=$(echo $INFO | cut -d',' -f2)
+
+  echo "SR: $SR_UUID, VHD: /var/run/sr-mount/$SR_UUID/$LOCATION"
+done
+
