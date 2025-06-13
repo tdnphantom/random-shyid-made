@@ -1,0 +1,14 @@
+[Unit]
+Description= Desc Name
+
+[Service]
+Type=simple
+WorkingDirectory= (Target Path)
+ExecStart=/usr/local/bin (Executor Path)
+Restart=on-failure
+RestartSec=5s
+StartLimitInterval=60s
+StartLimitBurst=3
+
+[Install]
+WantedBy=multi-user.target
