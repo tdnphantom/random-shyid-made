@@ -1,3 +1,6 @@
+as for the docker version, just run docker-compose up -d 🗿
+
+as for the native version:
 🧱 Step 1: Update system & install required packages
 
 sudo apt update && sudo apt upgrade -y
