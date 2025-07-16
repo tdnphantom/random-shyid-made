@@ -29,4 +29,5 @@ FORMATTED_DAYS=$(printf "%'d" $DAYS_REMAINING | sed 's/,/./g')
 # Display the final message
 echo ""  # So there's space before the massage (aesthetical purpose)
 echo "${FORMATTED_DAYS} hari lagi menuju Indonesia Emas 2045"
+echo ""  #another space lmfao
 # echo "${FORMATTED_DAYS} left till we reach the Golden Indonesia 2045"  // If you want english
